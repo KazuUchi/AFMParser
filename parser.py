@@ -1,10 +1,19 @@
+import numpy as np
 import struct
-from numpy import *
 
 def between(left, right, s):
     before,_,a = s.partition(left)
     a, _, after = a.partition(right)
     return a
+
+def after(a, value):
+    # Find and validate first part.
+    pos_a = value.rfind(a)
+    if pos_a == -1: return ""
+    # Returns chars after the found string.
+    adjusted_pos_a = pos_a + len(a)
+    if adjusted_pos_a >= len(value): return ""
+    return value[adjusted_pos_a:]
 
 def get_number(str):
     l = []
@@ -22,6 +31,12 @@ class AFMParser(object):
         self.header = self._get_header()
         self.type_format = "h"
         self.scans = self.get_scans()
+        self.zsens = self.get_zsens()
+        self.zsens2 = self.get_zsens2()
+        self.sx = self.get_xposition()
+        self.sy = self.get_yposition()
+        self.sz = self.get_zposition()
+
 
     def get_scans(self):
         scans = []
@@ -45,6 +60,42 @@ class AFMParser(object):
         except IndexError:
             return 1.0
 
+    def get_zsens(self):
+        scal_data= self._find_in_header("Zsens:")
+        try:
+            return float(between("V ", " nm/V", scal_data[0]))
+        except IndexError:
+            return 1.0
+
+    def get_zsens2(self):
+        scal_data= self._find_in_header("ZsensSens:")
+        try:
+            return float(between("V ", " nm/V", scal_data[0]))
+        except IndexError:
+            return 1.0
+
+    def get_xposition(self):
+        scal_data= self._find_in_header("Stage X:")
+        try:
+            return float(after(": ", scal_data[0]))
+        except IndexError:
+            return 1.0
+
+    def get_yposition(self):
+        scal_data= self._find_in_header("Stage Y:")
+        try:
+            return float(after(": ", scal_data[0]))
+        except IndexError:
+            return 1.0
+
+    def get_zposition(self):
+        scal_data= self._find_in_header("Stage Z:")
+        try:
+            return float(after(": ", scal_data[0]))
+        except IndexError:
+            return 1.0
+
+
     def get_layer_name(self, layer=0):
         file_type_data = self.scans[layer]["@2:Image Data"]
         return between("\"", "\"", file_type_data[layer])
@@ -53,7 +104,7 @@ class AFMParser(object):
         offset = int(self.scans[layer]["Data offset"])
         rows = int(self.scans[layer]["Number of lines"])
         cols = int(self.scans[layer]["Samps/line"])
-        return rot90(self._read_at_offset(offset, rows, cols) * self.get_scale(layer))
+        return np.rot90(self._read_at_offset(offset, rows, cols) * self.get_scale(layer))
 
     def get_size(self):
         scan_size = get_number(self._find_in_header("Scan Size")[0].split(": ")[1])[0]
@@ -84,7 +135,7 @@ class AFMParser(object):
 
         f = open(self.filename, "rb")
         f.seek(offset)
-        data = zeros((rows, cols))
+        data = np.zeros((rows, cols))
         num_elements = rows * cols
         try:
             index = col = row = 0
